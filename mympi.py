@@ -1,12 +1,10 @@
-# from mpi4py import MPI
+from mpi4py import MPI
 import hashlib
 import sys
 from sys import exit
 import time
 import math
 
-#ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
-#abc
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -14,26 +12,25 @@ size = comm.Get_size()
 name = MPI.Get_processor_name()
 maxLen = 5
 
-char_list = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+start_time = time.time()
+
+# dictionary size = 37
+char_list = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z','0','1','2','3','4','5','6','7','8','9']
+
 index_temp = {}
 for i in range(len(char_list)) :
     index_temp[char_list[i]] = i
 
 def split_code (node_size) :
     my_suffle_list = set()
-    temp_char_list = char_list + ['']
-    for i in range(len(temp_char_list)) :
-        for j in range(len(temp_char_list)) :
-            my_suffle_list.add(temp_char_list[i] + temp_char_list[j])
-    my_suffle_list.remove('')
-    my_suffle_list = list(my_suffle_list)
     working_list = []
+
     for i in range(node_size) : 
         working_list.append([])
-    for i in range(len(my_suffle_list)) :
-        working_list[i%node_size].append(my_suffle_list)
+    for i in range(len(char_list)) :
+        working_list[i%node_size].append(char_list[i])
     
-    return char_list
+    return working_list
 
 
 def next_code (current) : 
@@ -42,26 +39,30 @@ def next_code (current) :
         s = current[i]
         if s == char_list[-1] : continue
         else :
-            result = current[:i] + char_list[index_temp[s]+1] + current[i+1:]
+            result = current[:i] + char_list[index_temp[s]+1] + ''.join([char_list[0] for x in range(len(current[i+1:]))])
             return result
     return ''.join([char_list[0] for x in range(len(current)+1)])
 
 def check_sha(encr, code) :
     hashStr = str(hashlib.sha256(code.encode('utf-8')).hexdigest())
-    if hasattr == encr :
+    #print (hashStr)
+    if hashStr == encr :
+	print ("found the result :" + code, "time :" + str(time.time()-start_time))
         message = {"found": True, "result": code}
         comm.send(message, dest=0, tag=1)
+	exit()
         return True
     return False
+
+#print (check_sha('36bbe50ed96841d10443bcb670d6554f0a34b761be67ec9c4a8ad2c0c44ca42c', 'abcde'))
 
 
 ##-=====================
 if rank == 0:
     
-    encrypt = '36bbe50ed96841d10443bcb670d6554f0a34b761be67ec9c4a8ad2c0c44ca42c'
-    clear_text = 'abcde'
-    start_time = time.time()
-    
+    encrypt ='36bbe50ed96841d10443bcb670d6554f0a34b761be67ec9c4a8ad2c0c44ca42c'
+    # clear_text = 'abcde' 
+        
     init_list = split_code(size-1)
     
     for i in range(1, size): 
@@ -74,7 +75,6 @@ if rank == 0:
             found = res.get('found')
             if found :
                 decrypted = res.get("result")
-                print ("the result :" + decrypted)
                 for i in range(1,size):
                     newMessage = {"shutdown": True}
                     comm.send(newMessage, dest=i,tag=0)
@@ -90,9 +90,13 @@ else :
             current = ''
             while True :
                 current = next_code(current)
-                current_code = code + current
+                current_code = ''.join([code, current])
+		#print (current_code)
+		if len(current_code) > maxLen : break
                 if (check_sha(encr, current_code)) :
                     break
-        
+
+			
+
 
             
